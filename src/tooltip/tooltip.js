@@ -107,10 +107,13 @@ angular.module( 'ui.bootstrap.tooltip', [ 'ui.bootstrap.position', 'ui.bootstrap
 
       return {
         restrict: 'EA',
+        controller: angular.noop,
+        controllerAs: 'tooltipCtrl',
+        scope: true,
         compile: function (tElem, tAttrs) {
           var tooltipLinker = $compile( template );
 
-          return function link ( scope, element, attrs ) {
+          return function link ( scope, element, attrs, tooltipCtrl ) {
             var tooltip;
             var tooltipLinkedScope;
             var transitionTimeout;
@@ -129,6 +132,9 @@ angular.module( 'ui.bootstrap.tooltip', [ 'ui.bootstrap.position', 'ui.bootstrap
               // Now set the calculated positioning.
               tooltip.css( ttPosition );
             };
+
+            // Set up the correct scope
+            tooltipCtrl.scope = scope.$parent;
 
             // By default, the tooltip is not open.
             // TODO add ability to start tooltip opened
@@ -302,7 +308,7 @@ angular.module( 'ui.bootstrap.tooltip', [ 'ui.bootstrap.position', 'ui.bootstrap
             prepTriggers();
 
             var animation = scope.$eval(attrs[prefix + 'Animation']);
-            ttScope.animation = angular.isDefined(animation) ? !!animation : options.animation;
+            scope.tt_animation = angular.isDefined(animation) ? !!animation : options.animation;
 
             var appendToBodyVal = scope.$eval(attrs[prefix + 'AppendToBody']);
             appendToBody = angular.isDefined(appendToBodyVal) ? appendToBodyVal : appendToBody;
@@ -332,6 +338,32 @@ angular.module( 'ui.bootstrap.tooltip', [ 'ui.bootstrap.position', 'ui.bootstrap
     };
   }];
 })
+
+.directive( 'tooltipTemplateTransclude', [
+         '$http', '$compile', '$templateCache',
+function ($http ,  $compile ,  $templateCache) {
+  return {
+    link: function ( scope, elem, attrs ) {
+      if (scope.tooltipCtrl && scope.content) {
+        // TODO: How to solve the problem of pre-loading the template?
+        // TODO: Should this be watching for changes in scope.content?
+        var templateUrl = scope.content,
+            transcludeScope = scope.tooltipCtrl.scope.$new();
+        $http.get( templateUrl, { cache: $templateCache })
+        .then(function (response) {
+          elem.html(response.data);
+          $compile(elem.contents())(transcludeScope);
+        });
+
+        // Manual destruction because the transclude isn't a descendent of the
+        // current scope
+        scope.$on('$destroy', function () {
+          transcludeScope.$destroy();
+        });
+      }
+    }
+  };
+}])
 
 .directive( 'tooltipPopup', function () {
   return {
